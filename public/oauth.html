@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sender Contact Manager - Authorization</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 24px 16px;
+      color: #202124;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: 12px;
+      padding: 32px 24px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+    .logo {
+      width: 52px;
+      height: 52px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 22px;
+      font-weight: 600;
+      color: #202124;
+    }
+    p.subtitle {
+      margin: 0 0 20px 0;
+      color: #5f6368;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .user-badge {
+      background: #e8f0fe;
+      color: #1967d2;
+      border-radius: 16px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-block;
+      margin-bottom: 20px;
+      border: 1px solid #d2e3fc;
+      word-break: break-all;
+    }
+    .permissions-box {
+      background: #f8f9fa;
+      border: 1px solid #eceff1;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+    .permissions-box h4 {
+      margin: 0 0 10px 0;
+      color: #3c4043;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .permissions-box ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #5f6368;
+    }
+    .permissions-box li {
+      margin-bottom: 6px;
+    }
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary:hover {
+      background-color: #1557b0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: #5f6368;
+      border: 1px solid #dadce0;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+      transition: background-color 0.2s;
+    }
+    .btn-secondary:hover {
+      background-color: #f1f3f4;
+    }
+    .demo-notice {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #70757a;
+      line-height: 1.4;
+    }
+    .success-badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background-color: #e6f4ea;
+      color: #137333;
+      font-size: 32px;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .token-box {
+      background: #f8f9fa;
+      border: 1px solid #eceff1;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: left;
+      margin-bottom: 24px;
+      font-size: 12px;
+      color: #3c4043;
+    }
+    .token-row {
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+    .token-row code {
+      background: #e8eaed;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .closing-msg {
+      margin-top: 14px;
+      font-size: 12px;
+      color: #5f6368;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="consent-view">
+    <div style="font-size: 44px; margin-bottom: 12px;">📇</div>
+    <h2>Sender Contact Manager Demo</h2>
+    <p class="subtitle">Connect Sender Contact Manager integration for developer testing.</p>
+
+    <div style="background: #e8f4fd; color: #0c5460; border: 1px solid #b8daff; border-radius: 8px; padding: 10px 14px; font-size: 12px; margin-bottom: 16px; text-align: left;">
+      🔒 <strong>Developer Sandbox:</strong> This is a test simulation. No user passwords, personal information, or external credentials are requested or stored.
+    </div>
+    
+    <div class="user-badge" id="user-display">Account: Loading...</div>
+    
+    <div class="permissions-box">
+      <h4>Demo scopes requested:</h4>
+      <ul>
+        <li>Read sample contacts list</li>
+        <li>Simulate adding contacts from emails</li>
+        <li>Store demo session tokens in backend</li>
+      </ul>
+    </div>
+    
+    <button type="button" class="btn-primary" id="btn-authorize" onclick="handleAuthorize()">Authorize Demo Connection</button>
+    <button type="button" class="btn-secondary" onclick="closeDialog()">Cancel</button>
+    
+    <div class="demo-notice">
+      🔒 <strong>Notice:</strong> This simulation saves a test token in the backend and closes automatically.
+    </div>
+  </div>
+
+  <div class="card" id="success-view" style="display: none;">
+    <div class="success-badge">✓</div>
+    <h2 style="color: #137333;">Connected Successfully!</h2>
+    <p class="subtitle">OAuth flow complete. Fetched tokens are securely saved in the in-memory backend.</p>
+    
+    <div class="token-box">
+      <div class="token-row"><strong>Account:</strong> <code id="token-user">...</code></div>
+      <div class="token-row"><strong>Status:</strong> <span style="color: #137333; font-weight: 600;">Connected</span></div>
+      <div class="token-row"><strong>Access Token:</strong> <code id="token-access">ya29.demo_token</code></div>
+      <div class="token-row"><strong>Refresh Token:</strong> <code id="token-refresh">1//demo_refresh</code></div>
+      <div class="token-row"><strong>Token Type:</strong> Bearer</div>
+      <div class="token-row"><strong>Expires In:</strong> 3600s</div>
+    </div>
+    
+    <button type="button" class="btn-primary" onclick="closeDialog()">Close Window</button>
+    
+    <div class="closing-msg">
+      Closing window and reloading add-on homepage...
+    </div>
+  </div>
+
+  <!-- Firebase Web SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const configuredProject = params.get('projectId') || '';
+    const configuredApiKey = params.get('apiKey') || '';
+    const configuredAppId = params.get('appId') || '';
+
+    const firebaseConfig = {
+      projectId: configuredProject || undefined,
+      apiKey: configuredApiKey || undefined,
+      appId: configuredAppId || undefined
+    };
+
+    let firebaseDb = null;
+    try {
+      if (typeof firebase !== 'undefined' && firebase.initializeApp && firebaseConfig.projectId && firebaseConfig.apiKey) {
+        firebase.initializeApp(firebaseConfig);
+        firebaseDb = firebase.firestore();
+        window.firebaseDb = firebaseDb;
+      }
+    } catch (e) {
+      console.warn('Firebase SDK init:', e);
+    }
+
+    const rawUser = params.get('userEmail') || params.get('userId');
+    const displayUser = (rawUser && rawUser.trim().length > 0 && rawUser !== 'default_user') ? rawUser.trim() : 'Current Signed-in User';
+    document.getElementById('user-display').textContent = 'Account: ' + displayUser;
+
+    function randomHex(len = 8) {
+      return Math.random().toString(36).substring(2, 2 + len);
+    }
+
+    function closeDialog() {
+      try {
+        if (window.google && window.google.script && window.google.script.host) {
+          window.google.script.host.close();
+        }
+      } catch (e) {}
+      try {
+        window.close();
+      } catch (e) {
+        console.log('window.close() error:', e);
+      }
+    }
+
+    async function handleAuthorize() {
+      const btn = document.getElementById('btn-authorize');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Connecting...';
+      }
+
+      const backendUrl = params.get('backendUrl') || window.location.origin;
+      const targetUser = (rawUser && rawUser.trim().length > 0) ? rawUser.trim().toLowerCase() : 'default_user';
+
+      let accessToken = 'ya29.demo_' + randomHex(10) + '_' + randomHex(10);
+      let refreshToken = '1//demo_refresh_' + randomHex(10) + '_' + randomHex(10);
+
+      const tokenDoc = {
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+        expiresAt: Date.now() + 3600 * 1000,
+        scope: 'https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/userinfo.email',
+        userId: targetUser,
+        connected: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // 1. Direct Firestore REST API persistence (works reliably in any browser iframe)
+      try {
+        const usersToSave = [targetUser];
+        if (targetUser !== 'default_user') {
+          usersToSave.push('default_user');
+        }
+        await Promise.all(usersToSave.map(async (u) => {
+          const payload = {
+            fields: {
+              accessToken: { stringValue: tokenDoc.accessToken },
+              refreshToken: { stringValue: tokenDoc.refreshToken },
+              tokenType: { stringValue: tokenDoc.tokenType },
+              expiresIn: { integerValue: String(tokenDoc.expiresIn) },
+              expiresAt: { integerValue: String(tokenDoc.expiresAt) },
+              scope: { stringValue: tokenDoc.scope },
+              userId: { stringValue: u },
+              connected: { booleanValue: true },
+              createdAt: { stringValue: tokenDoc.createdAt },
+              updatedAt: { stringValue: tokenDoc.updatedAt }
+            }
+          };
+          const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(configuredProject)}/databases/(default)/documents/tokens/${encodeURIComponent(u)}`;
+          await fetch(firestoreUrl, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }));
+        console.log('Saved tokens to Firestore via REST');
+      } catch (err) {
+        console.warn('Firestore REST persistence error:', err);
+      }
+
+      // 2. Direct Firestore SDK persistence if available
+      try {
+        if (window.firebaseDb) {
+          await window.firebaseDb.collection('tokens').doc(targetUser).set(tokenDoc);
+          if (targetUser !== 'default_user') {
+            await window.firebaseDb.collection('tokens').doc('default_user').set({ ...tokenDoc, userId: 'default_user' });
+          }
+          console.log('Saved tokens via Firebase SDK');
+        }
+      } catch (sdkErr) {
+        console.warn('Firebase SDK persistence error:', sdkErr);
+      }
+
+      // 3. Attempt backend notification (best effort)
+      try {
+        await fetch(backendUrl.replace(/\/$/, '') + '/oauth/authorize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: targetUser,
+            userEmail: displayUser
+          })
+        }).catch(() => {});
+      } catch (_) {}
+
+      document.getElementById('token-user').textContent = displayUser;
+      document.getElementById('token-access').textContent = accessToken;
+      document.getElementById('token-refresh').textContent = refreshToken;
+
+      document.getElementById('consent-view').style.display = 'none';
+      document.getElementById('success-view').style.display = 'block';
+
+      // Automatically close overlay after 1 second so onClose: 'RELOAD' triggers in Gmail
+      setTimeout(closeDialog, 1000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/gmail.addons.execute",
+    "https://www.googleapis.com/auth/gmail.addons.current.message.metadata",
+    "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly"
+  ],
+  "addOns": {
+    "common": {
+      "name": "Sender Contact Manager",
+      "logoUrl": "https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png",
+      "homepageTrigger": {
+        "runFunction": "https://YOUR_CLOUD_RUN_SERVICE_URL/"
+      }
+    },
+    "gmail": {
+      "homepageTrigger": {
+        "runFunction": "https://YOUR_CLOUD_RUN_SERVICE_URL/"
+      },
+      "contextualTriggers": [
+        {
+          "unconditional": {},
+          "onTriggerFunction": "https://YOUR_CLOUD_RUN_SERVICE_URL/"
+        }
+      ]
+    },
+    "httpOptions": {
+      "granularOauthPermissionSupport": "OPT_IN"
+    }
+  }
+}

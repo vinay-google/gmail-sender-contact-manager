@@ -1,0 +1,31 @@
+{
+  "name": "sender-contact-manager",
+  "version": "1.0.0",
+  "description": "Sender Contact Manager - Google Workspace Add-on in Node.js and Express",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "google-workspace-addon",
+    "gmail-addon",
+    "sender-contact-manager",
+    "contact-manager",
+    "nodejs",
+    "express",
+    "google-workspace"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@google-cloud/firestore": "^9.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "google-auth-library": "^9.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
