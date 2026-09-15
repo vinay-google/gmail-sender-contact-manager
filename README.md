@@ -81,6 +81,17 @@ gcloud services enable \
   artifactregistry.googleapis.com
 ```
 
+> [!IMPORTANT]
+> **First-Time Setup Requirement: OAuth Consent Screen**
+> In addition to enabling APIs, Google Workspace requires every project hosting an add-on to configure the **OAuth consent screen** before the add-on can run or be authorized in Gmail.
+> If this step is skipped, attempting to open or test the add-on in Gmail will fail with:
+> ```text
+> Error with the add-on.
+> Run time error.
+> OAuth client not found -- Is the OAuth consent screen configured?
+> ```
+> Follow the step-by-step instructions in [Configuring the OAuth Consent Screen](#️-configuring-the-oauth-consent-screen) below before installing the add-on.
+
 ---
 
 ## 🗄️ Setting Up Cloud Firestore
@@ -156,6 +167,64 @@ When running locally (`npm run dev`), the app will automatically connect to your
    gcloud auth application-default login
    ```
 If Firestore is unreachable or credentials are not found, the app gracefully falls back to in-memory mock storage.
+
+---
+
+## 🛡️ Configuring the OAuth Consent Screen
+
+Google Workspace Add-ons execute within the user's Gmail interface and request authorization for the OAuth scopes specified in [`deployment.json`](deployment.json). For Google Workspace to create the OAuth authorization client and prompt for permissions, your Google Cloud project **must have an OAuth consent screen configured**.
+
+If you omit this step (or do not add your testing email to test users when using External mode), Gmail cannot request authorization and immediately fails with the runtime error:
+
+```text
+Error with the add-on.
+Run time error.
+OAuth client not found -- Is the OAuth consent screen configured?
+```
+
+### Step-by-Step Setup
+
+1. **Navigate to OAuth Consent Screen in Google Cloud Console**:
+   - Open [APIs & Services > OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent).
+   - Ensure your active project is selected in the top project dropdown.
+
+2. **Select User Type**:
+   - **Internal** *(Recommended for Google Workspace organization accounts)*:
+     - Choose this if your GCP project belongs to a Google Workspace organization (e.g. `@yourcompany.com`).
+     - **Advantage**: The add-on is instantly accessible to all accounts within your organization without verification or adding test users.
+   - **External** *(Required for personal `@gmail.com` accounts)*:
+     - Choose this if using a personal Gmail account or testing across different Google domains.
+     - The app will remain in **Testing** publishing status.
+   - Click **Create**.
+
+3. **Fill in App Information**:
+   - **App name**: `Sender Contact Manager` (or your chosen name).
+   - **User support email**: Select your email address.
+   - **Developer contact information**: Enter your email address.
+   - *(Optional)* App logo and domain links can remain empty for development/testing.
+   - Click **Save and Continue**.
+
+4. **Add OAuth Scopes**:
+   - Click **Add or Remove Scopes**.
+   - Add all 5 scopes defined in [`deployment.json`](deployment.json):
+     - `https://www.googleapis.com/auth/userinfo.email`
+     - `https://www.googleapis.com/auth/gmail.addons.execute`
+     - `https://www.googleapis.com/auth/gmail.addons.current.message.metadata`
+     - `https://www.googleapis.com/auth/gmail.addons.current.message.readonly`
+     - `https://www.googleapis.com/auth/gmail.readonly`
+   - Click **Update**, then click **Save and Continue**.
+
+5. **Add Test Users (Mandatory if User Type is "External")**:
+   - If you selected **External**, your consent screen is in "Testing" status. Google Workspace will **only** permit accounts explicitly listed under **Test users** to authorize and load the add-on.
+   - Under **Test users**, click **+ Add Users**.
+   - Enter your Gmail address (the account you will use to install and test the add-on in Gmail).
+   - Click **Add**, then click **Save and Continue**.
+
+   > [!WARNING]
+   > For External user types in Testing mode, if your active Gmail account is not in the **Test users** list, Google Workspace will reject access during authorization.
+
+6. **Summary**:
+   - Review your settings and click **Back to Dashboard**.
 
 ---
 
@@ -248,7 +317,27 @@ Once deployment completes, note your Cloud Run Service URL (e.g. `https://gmail-
 
 ---
 
-### Step 2: (Optional) Deploy Static OAuth Overlay to Firebase Hosting
+### Step 2: Configure the OAuth Consent Screen (First-Time Setup)
+
+Ensure your Google Cloud project has its OAuth consent screen configured. This is **required** by Google Workspace before an add-on can be tested or authorized.
+
+> [!WARNING]
+> If this step is not completed, or if your testing email is not added as a test user (for External apps), Gmail will fail with:
+> ```text
+> Error with the add-on.
+> Run time error.
+> OAuth client not found -- Is the OAuth consent screen configured?
+> ```
+
+Follow the [Configuring the OAuth Consent Screen](#️-configuring-the-oauth-consent-screen) instructions above:
+1. Select **Internal** (Workspace domain) or **External** (personal Gmail).
+2. Enter App Name and Support/Developer emails.
+3. Add the 5 scopes required by the add-on.
+4. **If External**: Add your Gmail account to **Test users**.
+
+---
+
+### Step 3: (Optional) Deploy Static OAuth Overlay to Firebase Hosting
 
 To host the OAuth consent dialog on Firebase Hosting (preventing iframe 403 issues inside Gmail):
 
@@ -271,7 +360,7 @@ gcloud run services update gmail-workspace-addon \
 
 ---
 
-### Step 3: Configure `deployment.json` with your Cloud Run URL
+### Step 4: Configure `deployment.json` with your Cloud Run URL
 
 Create `deployment.json` from `deployment.json.example` (if not created), then replace the URLs with your Cloud Run Service URL:
 
@@ -316,7 +405,7 @@ cp deployment.json.example deployment.json
 
 ---
 
-### Step 4: Create or Update the Google Workspace Add-on Deployment
+### Step 5: Create or Update the Google Workspace Add-on Deployment
 
 Create or update the deployment using the `gcloud` CLI:
 
@@ -333,15 +422,20 @@ Or via Google Cloud Console:
 
 ---
 
-### Step 5: Install & Test in Gmail
+### Step 6: Install & Test in Gmail
 
 1. Open [Gmail](https://mail.google.com/).
 2. Click the **Gear icon (Settings)** in the top right > **See all settings**.
 3. Go to the **Add-ons** tab.
 4. Under **Developer add-ons**, enter your **Deployment ID** and click **Install**.
-5. Refresh Gmail:
-   - In your inbox sidebar, click the add-on icon to open the **Contacts Manager** homepage.
-   - Click any email message to trigger the contextual card, which automatically prefills the real sender's details and lets you add them to Firestore!
+5. Refresh Gmail in your browser.
+6. In your inbox right sidebar, click the **Sender Contact Manager** icon:
+   - On the very first run, Google Workspace prompts you to authorize the add-on.
+   - Click **Authorize Access**, select your Google account, and click **Allow**.
+   - The add-on homepage will load, showing your saved contacts and connection status.
+7. Open any email message:
+   - The contextual trigger automatically fires and parses the sender from the Gmail API.
+   - Click **Add Contact** to save them directly to Firestore!
 
 ---
 
@@ -355,6 +449,7 @@ The add-on requests only the minimal scopes required to operate:
 | `https://www.googleapis.com/auth/gmail.addons.execute` | Authorizes Google Workspace to execute the add-on's trigger webhooks. |
 | `https://www.googleapis.com/auth/gmail.addons.current.message.metadata` | Grants ephemeral access to read the `From` header of the currently opened email. |
 | `https://www.googleapis.com/auth/gmail.addons.current.message.readonly` | Allows reading message details when the contextual trigger fires. |
+| `https://www.googleapis.com/auth/gmail.readonly` | Fallback read access to fetch sender metadata via the Gmail API. |
 
 ### Request Verification
 Every incoming request to the HTTP backend is validated by [`src/middleware/auth.js`](src/middleware/auth.js):
@@ -365,19 +460,30 @@ Every incoming request to the HTTP backend is validated by [`src/middleware/auth
 
 ## 🐛 Troubleshooting
 
-### 1. Sender info shows empty when opening an email
+### 1. "Error with the add-on. Run time error. OAuth client not found -- Is the OAuth consent screen configured?"
+- **Cause**: Google Workspace displays this runtime error when opening an add-on whose backing Google Cloud project has not configured an OAuth consent screen, or when using **External** user type in **Testing** mode without adding the active Gmail account to **Test users**.
+- **Fix**:
+  1. Open [Google Cloud Console > APIs & Services > OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent).
+  2. Select **Internal** (if in a Google Workspace organization) or **External** (if using personal `@gmail.com`) and click **Create**.
+  3. Fill in the **App name**, **User support email**, and **Developer contact information**.
+  4. In the **Scopes** step, add the 5 scopes listed in [`deployment.json`](deployment.json).
+  5. **Crucial for External mode**: In the **Test users** step, click **+ Add Users** and enter your Gmail email address.
+  6. Save and return to the dashboard.
+  7. Return to Gmail, refresh the page (`Ctrl+R` or `Cmd+R`), and click the add-on icon again. Click **Authorize Access** when prompted.
+
+### 2. Sender info shows empty when opening an email
 - Verify that `deployment.json` includes `https://www.googleapis.com/auth/gmail.addons.current.message.metadata`.
 - Ensure the user accepted the permissions dialog when installing or updating the add-on.
 
-### 2. Overlay shows "403 Forbidden" or refuses to load inside iframe
+### 3. Overlay shows "403 Forbidden" or refuses to load inside iframe
 - Google Workspace Add-on `OVERLAY` windows enforce strict frame and HTTPS rules.
 - Deploy the overlay HTML to **Firebase Hosting** or a public HTTPS CDN and set `PUBLIC_OAUTH_URL`.
 
-### 3. "Unauthorized: Missing or invalid Authorization header" (401)
+### 4. "Unauthorized: Missing or invalid Authorization header" (401)
 - In local development, ensure `SKIP_AUTH_VALIDATION=true` in `.env`.
 - In production, ensure `SKIP_AUTH_VALIDATION=false` and that requests originate from Google Workspace.
 
-### 4. Firestore permission denied error
+### 5. Firestore permission denied error
 - Check that the Cloud Run service account has the **Cloud Datastore User** or **Firestore User** IAM role in your Google Cloud Project.
 
 ---
