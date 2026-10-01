@@ -25,6 +25,11 @@ const store = require('../store');
  * @returns {Object} RenderActions Response Payload
  */
 async function getGmailMessageCard(event) {
+  const baseUrl = event?.baseUrl ||
+    process.env.APP_URL ||
+    process.env.BASE_URL ||
+    `http://localhost:${process.env.PORT || 3000}`;
+
   // Sync tokens from Firestore if available
   await store.refreshTokens(event);
 
@@ -104,7 +109,9 @@ async function getGmailMessageCard(event) {
             buttons: [
               createButton({
                 text: 'Back to Contacts',
-                actionMethod: 'onHomepage',
+                openUrl: `${baseUrl}/reload-overlay`,
+                openAs: 'OVERLAY',
+                onClose: 'RELOAD',
                 isPrimary: true
               }),
               createButton({
@@ -164,7 +171,9 @@ async function getGmailMessageCard(event) {
           }),
           createButton({
             text: 'Back to Contacts',
-            actionMethod: 'onHomepage'
+            openUrl: `${baseUrl}/reload-overlay`,
+            openAs: 'OVERLAY',
+            onClose: 'RELOAD'
           })
         ]
       }

@@ -30,16 +30,19 @@ function formatDateTime(dateStr) {
 }
 
 /**
- * Builds the "Contact Details" card displayed immediately after clicking "Add Contact".
- * Fulfills requirement: Once "Add Contact" is clicked, show details about the contact.
+ * Builds the Contact Details Card object.
  *
  * @param {Object} contact - The newly added/saved contact object
  * @param {Object} [event] - The Google Workspace event payload
- * @returns {Object} RenderActions Response Payload
+ * @returns {Object} Google Workspace Card object
  */
-function getContactDetailsCard(contact, event) {
+function buildContactDetailsCardObject(contact, event) {
   const name = contact?.name || 'Contact';
   const email = contact?.email || '';
+  const baseUrl = event?.baseUrl ||
+    process.env.APP_URL ||
+    process.env.BASE_URL ||
+    `http://localhost:${process.env.PORT || 3000}`;
 
   const detailsSection = createSection({
     header: 'Contact Information',
@@ -72,7 +75,9 @@ function getContactDetailsCard(contact, event) {
           buttons: [
             createButton({
               text: 'Back to Contacts',
-              actionMethod: 'onHomepage',
+              openUrl: `${baseUrl}/reload-overlay`,
+              openAs: 'OVERLAY',
+              onClose: 'RELOAD',
               isPrimary: true
             }),
             createButton({
@@ -85,12 +90,25 @@ function getContactDetailsCard(contact, event) {
     ]
   });
 
-  const card = buildCard({
+  return buildCard({
     title: 'Contact Details',
     subtitle: `Saved • ${name}`,
     imageUrl: 'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png',
     sections: [detailsSection, actionsSection]
   });
+}
+
+/**
+ * Builds the "Contact Details" card displayed immediately after clicking "Add Contact".
+ *
+ * @param {Object} contact - The newly added/saved contact object
+ * @param {Object} [event] - The Google Workspace event payload
+ * @returns {Object} RenderActions Response Payload
+ */
+function getContactDetailsCard(contact, event) {
+  const card = buildContactDetailsCardObject(contact, event);
+  const name = contact?.name || 'Contact';
+  const email = contact?.email || '';
 
   return createResponsePayload({
     navigations: [{
@@ -100,4 +118,7 @@ function getContactDetailsCard(contact, event) {
   });
 }
 
-module.exports = { getContactDetailsCard };
+module.exports = {
+  buildContactDetailsCardObject,
+  getContactDetailsCard
+};

@@ -90,9 +90,11 @@ test('POST / - handles disconnect and returns Connect card', async () => {
 
   assert.equal(res.status, 200);
   const data = await res.json();
-  const card = data.action.navigations[0].pushCard;
+  const action = data.renderActions?.action || data.action;
+  const card = action.navigations[0].updateCard || action.navigations[0].pushCard;
   assert.equal(card.header.title, 'Connect Contacts');
-  assert.equal(data.action.notification.text, 'Account disconnected.');
+  assert.equal(action.notification.text, 'Account disconnected.');
+  assert.equal(data.stateChanged, true, 'handleDisconnect must set stateChanged: true in SubmitFormResponse');
 });
 
 test('POST / - connect flow: user is disconnected until completing OAuth authorization dance', async () => {
@@ -231,7 +233,15 @@ test('POST / - handles handleAddContact and returns Contact Details page, then n
 
   assert.equal(res.status, 200);
   const data = await res.json();
-  const card = data.action.navigations[0].updateCard || data.action.navigations[0].pushCard;
+  const action = data.renderActions?.action || data.action;
+  assert.ok(action, 'Response must contain action object');
+  assert.ok(action.navigations, 'Response must contain navigations');
+
+  // Trick 1: chain [{ "popToRoot": true }, { "updateCard": updatedContextualRootCard }, { "pushCard": detailCard }]
+  assert.equal(action.navigations[0].popToRoot, true, 'Must pop to root');
+  assert.ok(action.navigations[1].updateCard, 'Must update contextual root card');
+  assert.ok(action.navigations[2].pushCard, 'Must push detail card');
+  const card = action.navigations[2].pushCard;
 
   // Verify Contact Details page is shown with contact details
   assert.equal(card.header.title, 'Contact Details');
@@ -250,11 +260,9 @@ test('POST / - handles handleAddContact and returns Contact Details page, then n
   assert.equal(store.isContact(newEmail), true);
   assert.equal(store.getContactCount(), initialCount + 1);
 
-  // Verify response strictly adheres to google.apps.card.v1.RenderActions
-  assert.ok(data.action, 'Response must contain action object');
-  assert.ok(data.action.navigations, 'Response must contain navigations');
-  assert.equal(data.stateChanged, undefined, 'stateChanged must not be present at root');
-  assert.equal(data.action.stateChanged, undefined, 'stateChanged must not be present in action');
+  // Trick 3 & 4: Verify SubmitFormResponse structure with stateChanged: true at root
+  assert.ok(data.renderActions, 'Response must contain renderActions at root');
+  assert.equal(data.stateChanged, true, 'handleAddContact must set stateChanged: true in SubmitFormResponse');
 
   // Verify Back to Contacts button is present in the add-on card
   const allCardButtons = card.sections.flatMap(s =>
@@ -318,8 +326,9 @@ test('POST / - going back to inbox by pressing back inside Gmail triggers homepa
   });
   assert.equal(addRes.status, 200);
   const addData = await addRes.json();
-  assert.ok(addData.action, 'handleAddContact response must contain action');
-  assert.equal(addData.stateChanged, undefined, 'stateChanged must not be present');
+  const addAction = addData.renderActions?.action || addData.action;
+  assert.ok(addAction, 'handleAddContact response must contain action');
+  assert.equal(addData.stateChanged, true, 'handleAddContact response must signal stateChanged: true');
 
   // In Gmail, pressing back button returns to inbox (triggering homepageTrigger without invokedFunction)
   const returnToInboxEvent = {
@@ -672,11 +681,13 @@ test('POST / - handles handleClearContacts to clear all contacts and returns emp
   assert.equal(res.status, 200);
   const data = await res.json();
 
-  assert.ok(data.action, 'Response must have action object');
-  assert.ok(data.action.notification, 'Response must show a notification');
-  assert.ok(data.action.notification.text.includes('cleared successfully'));
+  const action = data.renderActions?.action || data.action;
+  assert.ok(action, 'Response must have action object');
+  assert.ok(action.notification, 'Response must show a notification');
+  assert.ok(action.notification.text.includes('cleared successfully'));
+  assert.equal(data.stateChanged, true, 'handleClearContacts must set stateChanged: true in SubmitFormResponse');
 
-  const homepageCard = data.action.navigations[0].pushCard;
+  const homepageCard = action.navigations[0].updateCard || action.navigations[0].pushCard;
   assert.equal(homepageCard.header.title, 'Contacts Manager');
   assert.ok(homepageCard.header.subtitle.includes('0 Contact(s)'));
 
@@ -1411,5 +1422,40 @@ test('POST / - onGmailMessageOpen returns requesting_google_scopes when Gmail AP
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test('GET /reload-overlay - serves self-closing HTML with openAs: OVERLAY, onClose: RELOAD support', async () => {
+  const res = await fetch(`${baseUrl}/reload-overlay`);
+  assert.equal(res.status, 200);
+  const text = await res.text();
+  assert.ok(text.includes('window.close()'), 'Must call window.close() to trigger onClose: RELOAD');
+  assert.ok(res.headers.get('content-security-policy')?.includes('frame-ancestors'), 'Must allow embedding in Google Workspace iframe');
+});
+
+test('Homepage Refresh Contacts button uses self-closing reload-overlay with openAs: OVERLAY and onClose: RELOAD', async () => {
+  const event = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: 'testuser@example.com',
+      invokedFunction: 'onHomepage'
+    }
+  };
+
+  const res = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(event)
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  const card = data.action.navigations[0].pushCard;
+  const allButtons = card.sections.flatMap(s => (s.widgets || []).flatMap(w => w.buttonList?.buttons || []));
+  const refreshBtn = allButtons.find(b => b.text === 'Refresh Contacts');
+  assert.ok(refreshBtn, 'Refresh Contacts button must be present');
+  assert.ok(refreshBtn.onClick.openLink, 'Refresh Contacts must use openLink');
+  assert.equal(refreshBtn.onClick.openLink.openAs, 'OVERLAY');
+  assert.equal(refreshBtn.onClick.openLink.onClose, 'RELOAD');
+  assert.ok(refreshBtn.onClick.openLink.url.includes('/reload-overlay'));
 });
 

@@ -193,6 +193,36 @@ function createResponsePayload({
   return { action };
 }
 
+/**
+ * Generates standard Google Workspace SubmitFormResponse structure matching google.apps.card.v1.SubmitFormResponse
+ * Returned on action callbacks (form submissions, button clicks) that create or modify backend data.
+ * Contains "renderActions" and "stateChanged" at the top level.
+ *
+ * @param {Object} options
+ * @param {Array<Object>} [options.cards] - Array of Card objects to render
+ * @param {string} [options.notificationText] - Toast notification message text
+ * @param {Object} [options.link] - OpenLink object
+ * @param {Array<Object>} [options.navigations] - Array of Navigation objects
+ * @param {boolean} [options.stateChanged=true] - Whether the state of cards has changed and data in existing cards is stale
+ * @returns {Object}
+ */
+function createSubmitFormResponse({
+  cards = [],
+  notificationText = null,
+  link = null,
+  navigations = null,
+  stateChanged = true
+} = {}) {
+  const { action } = createResponsePayload({ cards, notificationText, link, navigations });
+  const response = {
+    renderActions: { action }
+  };
+  if (stateChanged) {
+    response.stateChanged = true;
+  }
+  return response;
+}
+
 module.exports = {
   createCardV2,
   buildCard,
@@ -201,5 +231,6 @@ module.exports = {
   createDecoratedText,
   createButton,
   createTextInput,
-  createResponsePayload
+  createResponsePayload,
+  createSubmitFormResponse
 };

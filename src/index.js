@@ -29,6 +29,33 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Self-closing same-origin reload overlay to reload add-on card stacks simultaneously (openAs: OVERLAY, onClose: RELOAD)
+app.get('/reload-overlay', (req, res) => {
+  res.removeHeader('X-Frame-Options');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com;");
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Refreshing Add-on...</title>
+</head>
+<body style="background:#ffffff;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+  <p style="color:#5f6368;font-size:13px;">Refreshing data...</p>
+  <script>
+    try {
+      window.close();
+    } catch (e) {
+      console.error(e);
+    }
+    setTimeout(function() {
+      try { window.close(); } catch (_) {}
+    }, 50);
+  </script>
+</body>
+</html>`);
+});
+
 // Helper to determine base URL from request
 function populateBaseUrl(req, event) {
   if (!event.baseUrl) {

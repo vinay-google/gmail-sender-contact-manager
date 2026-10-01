@@ -59,6 +59,11 @@ async function getHomepageCard(event) {
 
   console.log(`[Homepage] Rendering homepage with ${contactCount} contact(s) for user: ${store.getUserId(event)}`);
 
+  const baseUrl = event?.baseUrl ||
+    process.env.APP_URL ||
+    process.env.BASE_URL ||
+    `http://localhost:${process.env.PORT || 3000}`;
+
   // Action buttons: "Refresh Contacts", "Clear Contacts" and "Disconnect Connection" only show on the homepage
   const actionsSection = createSection({
     widgets: [
@@ -67,7 +72,9 @@ async function getHomepageCard(event) {
           buttons: [
             createButton({
               text: 'Refresh Contacts',
-              actionMethod: 'onHomepage',
+              openUrl: `${baseUrl}/reload-overlay`,
+              openAs: 'OVERLAY',
+              onClose: 'RELOAD',
               isPrimary: true
             }),
             createButton({

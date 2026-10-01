@@ -1,13 +1,14 @@
-const { createResponsePayload } = require('../utils/cardBuilder');
+const { createResponsePayload, createSubmitFormResponse } = require('../utils/cardBuilder');
 const { getHomepageCard } = require('./homepage');
 const { getConnectCard } = require('./connect');
-const { getContactDetailsCard } = require('./contactDetails');
+const { buildContactDetailsCardObject, getContactDetailsCard } = require('./contactDetails');
+const { getGmailMessageCard } = require('./gmailMessage');
 const store = require('../store');
 
 /**
  * Handles account connection action (`handleConnect`).
  * @param {Object} event - The Google Workspace event payload
- * @returns {Object} RenderActions Response Payload
+ * @returns {Object} SubmitFormResponse Payload
  */
 async function handleConnectResponse(event) {
   const publicWebUrl = process.env.PUBLIC_OAUTH_URL;
@@ -25,14 +26,15 @@ async function handleConnectResponse(event) {
   const connectCardObj = getConnectCard(event);
   const connectCard = connectCardObj.action.navigations[0].pushCard;
 
-  return createResponsePayload({
+  return createSubmitFormResponse({
     cards: [connectCard],
     link: {
       url: oauthUrl,
       openAs: 'OVERLAY',
       onClose: 'RELOAD'
     },
-    notificationText: 'Please complete authorization in the overlay window.'
+    notificationText: 'Please complete authorization in the overlay window.',
+    stateChanged: true
   });
 }
 
@@ -40,7 +42,7 @@ async function handleConnectResponse(event) {
  * Handles account disconnection action (`handleDisconnect`).
  * Clears all token and auth info for the current user from Firestore.
  * @param {Object} event - The Google Workspace event payload
- * @returns {Object} RenderActions Response Payload
+ * @returns {Object} SubmitFormResponse Payload
  */
 async function handleDisconnectResponse(event) {
   await store.disconnectUser(event);
@@ -48,17 +50,22 @@ async function handleDisconnectResponse(event) {
   const connectCardObj = getConnectCard(event);
   const connectCard = connectCardObj.action.navigations[0].pushCard;
 
-  return createResponsePayload({
-    cards: [connectCard],
-    notificationText: 'Account disconnected.'
+  return createSubmitFormResponse({
+    navigations: [{
+      updateCard: connectCard
+    }],
+    notificationText: 'Account disconnected.',
+    stateChanged: true
   });
 }
 
 /**
  * Handles adding a new contact (`handleAddContact`).
- * Triggered from Gmail Email Contextual button.
+ * Fulfills Trick 1: chain [{ "popToRoot": true }, { "updateCard": updatedContextualRootCard }, { "pushCard": detailCard }]
+ * Fulfills Trick 3 & 4: return "stateChanged": true at top level of SubmitFormResponse
+ *
  * @param {Object} event - The Google Workspace event payload
- * @returns {Object} RenderActions Response Payload
+ * @returns {Object} SubmitFormResponse Payload
  */
 async function handleAddContactResponse(event) {
   const formInputs = event?.commonEventObject?.formInputs || event?.formInputs || {};
@@ -76,20 +83,44 @@ async function handleAddContactResponse(event) {
     (email ? email.split('@')[0] : '');
 
   if (!email) {
-    return createResponsePayload({
-      notificationText: 'No email address found to add as contact.'
+    return createSubmitFormResponse({
+      notificationText: 'No email address found to add as contact.',
+      stateChanged: false
     });
   }
 
   const contact = await store.addContact({ name, email }, event);
 
-  return getContactDetailsCard(contact, event);
+  // Trick 1: Generate updated contextual root card showing saved contact
+  const rootMsgResponse = await getGmailMessageCard(event);
+  const updatedContextualRootCard = rootMsgResponse.action?.navigations?.[0]?.pushCard ||
+    rootMsgResponse.card ||
+    rootMsgResponse;
+
+  // Build the Contact Details card
+  const detailCard = buildContactDetailsCardObject(contact, event);
+
+  // Chain navigations: pop to root -> update root card -> push detail card
+  const navigations = [
+    { popToRoot: true },
+    { updateCard: updatedContextualRootCard },
+    { pushCard: detailCard }
+  ];
+
+  // Trick 3 & 4: Return SubmitFormResponse with stateChanged: true
+  return createSubmitFormResponse({
+    navigations,
+    notificationText: `✓ Added ${name} (${email}) to your contacts list!`,
+    stateChanged: true
+  });
 }
 
 /**
  * Handles clearing all contacts from Firestore for the current user (`handleClearContacts`).
+ * Fulfills Trick 3 & 4: return "stateChanged": true at top level of SubmitFormResponse
+ *
  * @param {Object} event - The Google Workspace event payload
- * @returns {Object} RenderActions Response Payload
+ * @returns {Object} SubmitFormResponse Payload
  */
 async function handleClearContactsResponse(event) {
   await store.clearContacts(event);
@@ -97,9 +128,12 @@ async function handleClearContactsResponse(event) {
   const updatedHomepage = await getHomepageCard(event);
   const updatedCard = updatedHomepage.action.navigations[0].pushCard;
 
-  return createResponsePayload({
-    cards: [updatedCard],
-    notificationText: 'Firestore contacts cleared successfully! You can now test adding contacts.'
+  return createSubmitFormResponse({
+    navigations: [{
+      updateCard: updatedCard
+    }],
+    notificationText: 'Firestore contacts cleared successfully! You can now test adding contacts.',
+    stateChanged: true
   });
 }
 
