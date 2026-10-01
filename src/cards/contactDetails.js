@@ -71,9 +71,13 @@ function getContactDetailsCard(contact, event) {
         buttonList: {
           buttons: [
             createButton({
-              text: 'View Inbox & All Contacts',
+              text: 'Back to Contacts',
               actionMethod: 'onHomepage',
               isPrimary: true
+            }),
+            createButton({
+              text: 'View Inbox & All Contacts',
+              actionMethod: 'onHomepage'
             })
           ]
         }

@@ -103,9 +103,13 @@ async function getGmailMessageCard(event) {
           buttonList: {
             buttons: [
               createButton({
-                text: 'View Inbox & All Contacts',
+                text: 'Back to Contacts',
                 actionMethod: 'onHomepage',
                 isPrimary: true
+              }),
+              createButton({
+                text: 'View Inbox & All Contacts',
+                actionMethod: 'onHomepage'
               })
             ]
           }
@@ -157,6 +161,10 @@ async function getGmailMessageCard(event) {
               contactName: senderName || ''
             },
             isPrimary: true
+          }),
+          createButton({
+            text: 'Back to Contacts',
+            actionMethod: 'onHomepage'
           })
         ]
       }

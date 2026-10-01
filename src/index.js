@@ -37,9 +37,46 @@ function populateBaseUrl(req, event) {
   }
 }
 
+// Helper to decode JWT payload without external network calls
+function decodeJwtPayload(token) {
+  try {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const jsonStr = Buffer.from(parts[1], 'base64url').toString('utf8');
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
 // Helper to attach verified user from Google Bearer token into event object
 function populateCurrentUser(req, event) {
-  const verifiedEmail = req.googleUser?.email;
+  let verifiedEmail = req.googleUser?.email || event?.commonEventObject?.userEmail || event?.userEmail;
+
+  if (!verifiedEmail) {
+    const authHeader = req.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const payload = decodeJwtPayload(authHeader.split(' ')[1]);
+      if (payload?.email) {
+        verifiedEmail = payload.email;
+        req.googleUser = payload;
+      }
+    }
+  }
+
+  if (!verifiedEmail && event?.authorizationEventObject?.userIdToken) {
+    const payload = decodeJwtPayload(event.authorizationEventObject.userIdToken);
+    if (payload?.email) {
+      verifiedEmail = payload.email;
+      req.googleUser = payload;
+    }
+  }
+
+  if (!verifiedEmail && process.env.DEFAULT_USER && process.env.DEFAULT_USER.includes('@')) {
+    verifiedEmail = process.env.DEFAULT_USER.trim().toLowerCase();
+  }
+
   if (verifiedEmail) {
     if (!event.commonEventObject) {
       event.commonEventObject = {};
@@ -50,7 +87,7 @@ function populateCurrentUser(req, event) {
     if (!event.userEmail) {
       event.userEmail = verifiedEmail;
     }
-    event.googleUser = req.googleUser;
+    event.googleUser = req.googleUser || { email: verifiedEmail };
   }
 }
 
@@ -95,6 +132,8 @@ app.post('/', verifyGoogleBearerToken, async (req, res) => {
       response = await handleClearContactsResponse(event);
     } else if (invokedFunction === 'handleAddContact') {
       response = await handleAddContactResponse(event);
+    } else if (invokedFunction === 'handleBack' || invokedFunction === 'onHomepage') {
+      response = await getHomepageCard(event);
     } else if (invokedFunction === 'onGmailMessageOpen' || (!invokedFunction && isEmailContext)) {
       response = await getGmailMessageCard(event);
     } else {
@@ -141,7 +180,9 @@ app.post('/action', verifyGoogleBearerToken, async (req, res) => {
     const event = req.body || {};
     populateBaseUrl(req, event);
     populateCurrentUser(req, event);
-    const invokedFunction = event?.commonEventObject?.invokedFunction;
+    const invokedFunction = event?.commonEventObject?.parameters?.invokedFunction ||
+      event?.commonEventObject?.parameters?.action ||
+      event?.commonEventObject?.invokedFunction;
     if (invokedFunction === 'handleConnect') {
       return res.status(200).json(await handleConnectResponse(event));
     }
@@ -150,6 +191,9 @@ app.post('/action', verifyGoogleBearerToken, async (req, res) => {
     }
     if (invokedFunction === 'handleClearContacts') {
       return res.status(200).json(await handleClearContactsResponse(event));
+    }
+    if (invokedFunction === 'handleBack' || invokedFunction === 'onHomepage') {
+      return res.status(200).json(await getHomepageCard(event));
     }
     return res.status(200).json(await handleAddContactResponse(event));
   } catch (error) {

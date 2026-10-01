@@ -250,6 +250,19 @@ test('POST / - handles handleAddContact and returns Contact Details page, then n
   assert.equal(store.isContact(newEmail), true);
   assert.equal(store.getContactCount(), initialCount + 1);
 
+  // Verify response strictly adheres to google.apps.card.v1.RenderActions
+  assert.ok(data.action, 'Response must contain action object');
+  assert.ok(data.action.navigations, 'Response must contain navigations');
+  assert.equal(data.stateChanged, undefined, 'stateChanged must not be present at root');
+  assert.equal(data.action.stateChanged, undefined, 'stateChanged must not be present in action');
+
+  // Verify Back to Contacts button is present in the add-on card
+  const allCardButtons = card.sections.flatMap(s =>
+    (s.widgets || []).flatMap(w => w.buttonList?.buttons || [])
+  );
+  const backBtn = allCardButtons.find(b => b.text === 'Back to Contacts');
+  assert.ok(backBtn, 'Back to Contacts button must exist inside the add-on');
+
   // Once user navigates back to inbox it should show the new contact in the list
   const inboxEvent = {
     commonEventObject: {
@@ -277,6 +290,136 @@ test('POST / - handles handleAddContact and returns Contact Details page, then n
     w.decoratedText && w.decoratedText.text.includes(newEmail)
   );
   assert.ok(foundContactWidget, 'Newly added contact must appear in inbox homepage contacts list');
+});
+
+test('POST / - going back to inbox by pressing back inside Gmail triggers homepageTrigger and refreshes data', async () => {
+  const store = require('../src/store');
+  const user = 'gmail.back.tester@example.com';
+  await store.connectUser(user);
+  await store.clearContacts(user);
+
+  // Add contact while viewing email
+  const addEvent = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      invokedFunction: 'handleAddContact',
+      parameters: {
+        contactEmail: 'grace.hopper@navy.mil',
+        contactName: 'Grace Hopper'
+      }
+    }
+  };
+
+  const addRes = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(addEvent)
+  });
+  assert.equal(addRes.status, 200);
+  const addData = await addRes.json();
+  assert.ok(addData.action, 'handleAddContact response must contain action');
+  assert.equal(addData.stateChanged, undefined, 'stateChanged must not be present');
+
+  // In Gmail, pressing back button returns to inbox (triggering homepageTrigger without invokedFunction)
+  const returnToInboxEvent = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      platform: 'WEB',
+      userEmail: user
+    }
+  };
+
+  const inboxRes = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(returnToInboxEvent)
+  });
+
+  assert.equal(inboxRes.status, 200);
+  const inboxData = await inboxRes.json();
+  const homepageCard = inboxData.action.navigations[0].pushCard;
+  assert.equal(homepageCard.header.title, 'Contacts Manager');
+  assert.ok(homepageCard.header.subtitle.includes('1 Contact(s)'), 'Homepage must show 1 contact after navigating back to inbox');
+
+  const contactsSection = homepageCard.sections.find(s => s.header.startsWith('My Contacts'));
+  assert.ok(contactsSection);
+  const contactItem = contactsSection.widgets.find(w =>
+    w.decoratedText && w.decoratedText.text.includes('grace.hopper@navy.mil')
+  );
+  assert.ok(contactItem, 'Newly added contact must appear on homepage when returning to inbox');
+});
+
+test('POST / - clicking back button inside add-on (handleBack or onHomepage) refreshes homepage data', async () => {
+  const store = require('../src/store');
+  const user = 'addon.back.tester@example.com';
+  await store.connectUser(user);
+  await store.clearContacts(user);
+
+  // Add contact
+  await store.addContact({ name: 'Katherine Johnson', email: 'kjohnson@nasa.gov' }, user);
+
+  // User clicks back button inside add-on
+  const backEvent = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      parameters: {
+        invokedFunction: 'handleBack'
+      }
+    }
+  };
+
+  const res = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(backEvent)
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  const card = data.action.navigations[0].pushCard;
+  assert.equal(card.header.title, 'Contacts Manager');
+  assert.ok(card.header.subtitle.includes('1 Contact(s)'));
+
+  const contactsSection = card.sections.find(s => s.header.startsWith('My Contacts'));
+  assert.ok(contactsSection);
+  const contactItem = contactsSection.widgets.find(w =>
+    w.decoratedText && w.decoratedText.text.includes('kjohnson@nasa.gov')
+  );
+  assert.ok(contactItem, 'Homepage refreshed via back button inside add-on must show latest contact');
+});
+
+test('POST /action - handleBack routes to homepage and fetches latest data', async () => {
+  const store = require('../src/store');
+  const user = 'action.back.tester@example.com';
+  await store.connectUser(user);
+  await store.clearContacts(user);
+
+  await store.addContact({ name: 'Margaret Hamilton', email: 'mhamilton@mit.edu' }, user);
+
+  const event = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      parameters: {
+        invokedFunction: 'handleBack'
+      }
+    }
+  };
+
+  const res = await fetch(`${baseUrl}/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(event)
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  const card = data.action.navigations[0].pushCard;
+  assert.equal(card.header.title, 'Contacts Manager');
+  assert.ok(card.header.subtitle.includes('1 Contact(s)'));
+  assert.ok(card.sections[0].widgets.some(w => w.decoratedText?.text?.includes('mhamilton@mit.edu')));
 });
 
 test('Connect card contains button with openAs: OVERLAY and onClose: RELOAD per Google guide', async () => {

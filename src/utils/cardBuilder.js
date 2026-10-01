@@ -161,6 +161,7 @@ function createTextInput({ name, label, hint, value = '', multiline = false }) {
  * @param {Array<Object>} [options.cards] - Array of Card objects to render
  * @param {string} [options.notificationText] - Toast notification message text
  * @param {Object} [options.link] - OpenLink object
+ * @param {Array<Object>} [options.navigations] - Array of Navigation objects
  * @returns {Object}
  */
 function createResponsePayload({
