@@ -242,6 +242,8 @@ async function extractSenderInfo(event) {
     event?.messageMetadata?.senderEmail ||
     event?.commonEventObject?.parameters?.senderEmail ||
     event?.parameters?.senderEmail ||
+    event?.commonEventObject?.parameters?.contactEmail ||
+    event?.parameters?.contactEmail ||
     '';
 
   let rawName =
@@ -249,6 +251,8 @@ async function extractSenderInfo(event) {
     event?.messageMetadata?.senderName ||
     event?.commonEventObject?.parameters?.senderName ||
     event?.parameters?.senderName ||
+    event?.commonEventObject?.parameters?.contactName ||
+    event?.parameters?.contactName ||
     '';
 
   // 2. Check if a raw 'From' header string is directly provided

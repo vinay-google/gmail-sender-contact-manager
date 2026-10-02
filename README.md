@@ -14,9 +14,12 @@ A complete, production-ready **Google Workspace Add-on** HTTP backend built with
   - `contacts`: Saves and lists user contacts across sessions.
   - `tokens`: Persists third-party OAuth connection tokens when the user connects, and deletes them when the user disconnects.
 - **Third-Party OAuth Overlay Flow (`OVERLAY` + `RELOAD`)**: Implements Google's official [Connect Third-Party Service](https://developers.google.com/workspace/add-ons/guides/connect-third-party-service#prompt-sign-in) pattern using an in-app overlay dialog that automatically reloads the add-on once authorized.
-- **Contact Management**: Features quick contact adding, duplicate prevention, and a **Clear Contacts** action to reset contacts.
+- **Contact Management & State Synchronization**:
+  - Features quick contact adding, duplicate prevention, and a **Clear Contacts** action to reset contacts.
+  - **Navigation Chaining & State Updates**: Implements navigation chaining (`popToRoot` -> `updateCard` -> `pushCard`) and returns `stateChanged: true` on `SubmitFormResponse` to keep underlying cards in the navigation stack updated.
+  - **Self-Closing Reload Overlay**: Uses a lightweight self-closing overlay dialog (`openAs: 'OVERLAY'`, `onClose: 'RELOAD'`) to synchronize contextual and homepage stacks simultaneously in Gmail upon contact mutations.
 - **CardsV2 Builder**: Modular utilities in [`src/utils/cardBuilder.js`](src/utils/cardBuilder.js) for building Cards, Sections, Text, DecoratedText, Inputs, and Action Buttons conforming to `google.apps.card.v1`.
-- **Automated Integration Tests**: Comprehensive unit and integration test suite using Node's native test runner (`npm test`).
+- **Automated Integration Tests**: Comprehensive unit and integration test suite (33 automated tests) using Node's native test runner (`npm test`).
 
 ---
 
@@ -27,13 +30,14 @@ gmail-addon/
 ├── deployment.json            # Google Workspace Add-on deployment configuration
 ├── deployment.json.example    # Deployment configuration template
 ├── Dockerfile                 # Container definition for Google Cloud Run
-├── firebase.json              # Firebase Hosting configuration for OAuth overlay
+├── firebase.json              # Firebase Hosting configuration for OAuth and reload overlays
 ├── package.json
 ├── .env.example               # Environment variable documentation template
 ├── .gitignore                 # Excludes secrets, caches, and dependencies
 ├── README.md
 ├── public/
-│   └── oauth.html             # Static OAuth consent dialog for in-app overlay
+│   ├── oauth.html             # Static OAuth consent dialog for in-app overlay
+│   └── reload.html            # Self-closing overlay for add-on state reloading
 ├── src/
 │   ├── index.js               # Express server entry point & route dispatcher
 │   ├── store.js               # Firestore & in-memory store for contacts and tokens
@@ -51,7 +55,7 @@ gmail-addon/
 │       ├── cardBuilder.js     # CardsV2 JSON builder utilities
 │       └── senderHelper.js    # Gmail API message fetcher & MIME/RFC 5322 header parser
 └── test/
-    └── server.test.js         # 26 automated integration and unit tests
+    └── server.test.js         # 33 automated integration and unit tests
 ```
 
 ---
@@ -249,6 +253,7 @@ cp .env.example .env
 | `GOOGLE_CLIENT_ID` | _(empty)_ | `xxxx.apps.googleusercontent.com` | Optional OAuth Client ID to enforce token audience validation. |
 | `SKIP_AUTH_VALIDATION` | `true` | `false` | Set to `true` locally to test without Google ID tokens. Must be `false` in production. |
 | `PUBLIC_OAUTH_URL` | _(empty)_ | `https://<project>.web.app/oauth.html` | Public HTTPS URL for the OAuth overlay dialog (e.g. on Firebase Hosting). |
+| `PUBLIC_RELOAD_URL` | _(empty)_ | `https://<project>.web.app/reload.html` | Public HTTPS URL for the self-closing state reload overlay. |
 | `DEFAULT_USER` | _(auto-detected)_ | `user@example.com` | Optional fallback user for testing. If omitted, the active signed-in gcloud user is dynamically detected. |
 
 > [!IMPORTANT]
@@ -337,9 +342,9 @@ Follow the [Configuring the OAuth Consent Screen](#️-configuring-the-oauth-con
 
 ---
 
-### Step 3: (Optional) Deploy Static OAuth Overlay to Firebase Hosting
+### Step 3: (Optional) Deploy Static Overlays to Firebase Hosting
 
-To host the OAuth consent dialog on Firebase Hosting (preventing iframe 403 issues inside Gmail):
+To host the OAuth consent dialog and self-closing reload overlay on Firebase Hosting (preventing iframe 403 issues inside Gmail):
 
 ```bash
 # Initialize Firebase if not done
@@ -350,12 +355,12 @@ firebase use YOUR_PROJECT_ID
 firebase deploy --only hosting
 ```
 
-Set `PUBLIC_OAUTH_URL` on your Cloud Run service:
+Set `PUBLIC_OAUTH_URL` and `PUBLIC_RELOAD_URL` on your Cloud Run service:
 
 ```bash
 gcloud run services update gmail-workspace-addon \
   --region us-central1 \
-  --set-env-vars "PUBLIC_OAUTH_URL=https://YOUR_PROJECT_ID.web.app/oauth.html"
+  --set-env-vars "PUBLIC_OAUTH_URL=https://YOUR_PROJECT_ID.web.app/oauth.html,PUBLIC_RELOAD_URL=https://YOUR_PROJECT_ID.web.app/reload.html"
 ```
 
 ---

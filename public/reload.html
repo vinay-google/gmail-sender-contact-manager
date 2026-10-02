@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <style>
+    html, body {
+      background: transparent !important;
+      background-color: transparent !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      display: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
+      border: none !important;
+    }
+  </style>
+  <script>
+    (function() {
+      function closeNow() {
+        try {
+          if (window.google && window.google.script && window.google.script.host) {
+            window.google.script.host.close();
+          }
+        } catch (_) {}
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage('close', '*');
+          }
+        } catch (_) {}
+        try {
+          window.close();
+        } catch (_) {}
+      }
+      closeNow();
+      setTimeout(closeNow, 5);
+      setTimeout(closeNow, 20);
+    })();
+  </script>
+</head>
+<body onload="try{window.close();}catch(_){}">
+</body>
+</html>

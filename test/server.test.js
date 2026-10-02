@@ -162,7 +162,8 @@ test('POST / - onGmailMessageOpen shows sender email, name and Add Contact butto
 
   assert.equal(res.status, 200);
   const data = await res.json();
-  const card = data.action.navigations[0].pushCard;
+  // Navigations has homepage at root (navigations[0]) and email card on top (navigations[1])
+  const card = data.action.navigations.slice(-1)[0].pushCard;
 
   // Verify opening email must NOT automatically add the contact
   assert.equal(store.isContact(unknownEmail), false, 'Opening email must NOT automatically add the contact');
@@ -240,6 +241,7 @@ test('POST / - handles handleAddContact and returns Contact Details page, then n
   // Trick 1: chain [{ "popToRoot": true }, { "updateCard": updatedContextualRootCard }, { "pushCard": detailCard }]
   assert.equal(action.navigations[0].popToRoot, true, 'Must pop to root');
   assert.ok(action.navigations[1].updateCard, 'Must update contextual root card');
+  assert.equal(action.navigations[1].updateCard.header.title, 'Sender Details', 'Root card must be updated contextual card');
   assert.ok(action.navigations[2].pushCard, 'Must push detail card');
   const card = action.navigations[2].pushCard;
 
@@ -648,7 +650,7 @@ test('Clear Contacts and Disconnect Connection ONLY show on homepage', async () 
   });
   assert.equal(emailRes.status, 200);
   const emailData = await emailRes.json();
-  const emailCard = emailData.action.navigations[0].pushCard;
+  const emailCard = emailData.action.navigations.slice(-1)[0].pushCard;
 
   const emailButtons = emailCard.sections.flatMap(s =>
     (s.widgets || []).flatMap(w => w.buttonList?.buttons || [])
@@ -764,7 +766,7 @@ test('POST / - contextual trigger fetches real sender from Gmail API instead of 
 
     assert.equal(res.status, 200);
     const data = await res.json();
-    const card = data.action.navigations[0].pushCard;
+    const card = data.action.navigations.slice(-1)[0].pushCard;
 
     assert.equal(gmailApiCalled, true, 'Add-on must query Gmail API');
 
@@ -833,7 +835,7 @@ test('POST / - contextual trigger does NOT prefill Alex Smith when message metad
 
     assert.equal(res.status, 200);
     const data = await res.json();
-    const card = data.action.navigations[0].pushCard;
+    const card = data.action.navigations.slice(-1)[0].pushCard;
 
     const cardJson = JSON.stringify(card);
     assert.equal(cardJson.includes('alex.smith@example.com'), false);
@@ -1432,7 +1434,7 @@ test('GET /reload-overlay - serves self-closing HTML with openAs: OVERLAY, onClo
   assert.ok(res.headers.get('content-security-policy')?.includes('frame-ancestors'), 'Must allow embedding in Google Workspace iframe');
 });
 
-test('Homepage Refresh Contacts button uses self-closing reload-overlay with openAs: OVERLAY and onClose: RELOAD', async () => {
+test('Homepage Refresh Contacts button uses actionMethod: onHomepage to refresh contacts', async () => {
   const event = {
     commonEventObject: {
       hostApp: 'GMAIL',
@@ -1453,9 +1455,170 @@ test('Homepage Refresh Contacts button uses self-closing reload-overlay with ope
   const allButtons = card.sections.flatMap(s => (s.widgets || []).flatMap(w => w.buttonList?.buttons || []));
   const refreshBtn = allButtons.find(b => b.text === 'Refresh Contacts');
   assert.ok(refreshBtn, 'Refresh Contacts button must be present');
-  assert.ok(refreshBtn.onClick.openLink, 'Refresh Contacts must use openLink');
-  assert.equal(refreshBtn.onClick.openLink.openAs, 'OVERLAY');
-  assert.equal(refreshBtn.onClick.openLink.onClose, 'RELOAD');
-  assert.ok(refreshBtn.onClick.openLink.url.includes('/reload-overlay'));
+  assert.ok(refreshBtn.onClick.action);
+  assert.equal(
+    refreshBtn.onClick.action.parameters.find(p => p.key === 'invokedFunction')?.value,
+    'onHomepage'
+  );
 });
+
+test('Back to Contacts button in gmailMessage uses actionMethod onHomepage without openUrl', async () => {
+  const store = require('../src/store');
+  const user = 'testuser@example.com';
+  await store.connectUser(user);
+
+  // Message with unknown sender
+  const eventUnknown = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      invokedFunction: 'onGmailMessageOpen',
+      parameters: {
+        senderEmail: 'newunknown@example.com',
+        senderName: 'New Unknown'
+      }
+    }
+  };
+
+  const res1 = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(eventUnknown)
+  });
+  assert.equal(res1.status, 200);
+  const data1 = await res1.json();
+  const card1 = data1.action.navigations.slice(-1)[0].pushCard;
+  const buttons1 = card1.sections.flatMap(s => (s.widgets || []).flatMap(w => w.buttonList?.buttons || []));
+  const backBtn1 = buttons1.find(b => b.text === 'Back to Contacts');
+  assert.ok(backBtn1, 'Back to Contacts button must be present for unknown sender');
+  assert.ok(!backBtn1.onClick.openLink, 'Must not use openLink to avoid Cloud Run 403 Forbidden');
+  assert.ok(backBtn1.onClick.action, 'Must use action');
+  assert.equal(
+    backBtn1.onClick.action.parameters.find(p => p.key === 'invokedFunction')?.value,
+    'onHomepage'
+  );
+
+  // Message with saved contact
+  await store.addContact({ name: 'Saved Person', email: 'savedperson@example.com' }, user);
+  const eventSaved = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      invokedFunction: 'onGmailMessageOpen',
+      parameters: {
+        senderEmail: 'savedperson@example.com',
+        senderName: 'Saved Person'
+      }
+    }
+  };
+
+  const res2 = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(eventSaved)
+  });
+  assert.equal(res2.status, 200);
+  const data2 = await res2.json();
+  const card2 = data2.action.navigations.slice(-1)[0].pushCard;
+  const buttons2 = card2.sections.flatMap(s => (s.widgets || []).flatMap(w => w.buttonList?.buttons || []));
+  const backBtn2 = buttons2.find(b => b.text === 'Back to Contacts');
+  assert.ok(backBtn2, 'Back to Contacts button must be present for saved contact');
+  assert.ok(!backBtn2.onClick.openLink, 'Must not use openLink to avoid Cloud Run 403 Forbidden');
+  assert.ok(backBtn2.onClick.action, 'Must use action');
+  assert.equal(
+    backBtn2.onClick.action.parameters.find(p => p.key === 'invokedFunction')?.value,
+    'onHomepage'
+  );
+});
+
+test('Add-on back button navigates all the way back to refreshed homepage on contextual stack', async () => {
+  const store = require('../src/store');
+  const user = 'alltheway.back.tester@example.com';
+  await store.connectUser(user);
+  await store.clearContacts(user);
+
+  // 1. User opens an email: contextual card is properly displayed
+  const openEmailEvent = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      invokedFunction: 'onGmailMessageOpen',
+      parameters: {
+        senderEmail: 'margaret.hamilton@apollo.nasa.gov',
+        senderName: 'Margaret Hamilton'
+      }
+    }
+  };
+
+  const openRes = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(openEmailEvent)
+  });
+  assert.equal(openRes.status, 200);
+  const openData = await openRes.json();
+  const openCard = openData.action.navigations[0].pushCard;
+  assert.equal(openCard.header.title, 'Sender Information', 'Contextual card must show Sender Information');
+
+  // 2. User clicks Add Contact: returns Trick 1 chain (popToRoot -> update contextual card -> push detail card)
+  const addEvent = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      invokedFunction: 'handleAddContact',
+      parameters: {
+        contactEmail: 'margaret.hamilton@apollo.nasa.gov',
+        contactName: 'Margaret Hamilton'
+      }
+    }
+  };
+
+  const addRes = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(addEvent)
+  });
+  assert.equal(addRes.status, 200);
+  const addData = await addRes.json();
+  assert.equal(addData.stateChanged, true, 'SubmitFormResponse must have stateChanged: true');
+
+  const navs = addData.renderActions.action.navigations;
+  assert.equal(navs.length, 3, 'Must chain popToRoot, update contextual card, push detail card');
+  assert.equal(navs[0].popToRoot, true);
+  assert.equal(navs[1].updateCard.header.title, 'Sender Details', 'Contextual root card must be updated to Sender Details');
+  assert.equal(navs[2].pushCard.header.title, 'Contact Details', 'Top card must be Contact Details');
+
+  // Verify Trick 2: Self-closing overlay to reload both stacks simultaneously in Gmail
+  assert.ok(addData.renderActions.action.link, 'Must contain self-closing reload link (Trick 2)');
+  assert.equal(addData.renderActions.action.link.openAs, 'OVERLAY');
+  assert.equal(addData.renderActions.action.link.onClose, 'RELOAD');
+  assert.ok(addData.renderActions.action.link.url.includes('reload.html'), 'Link URL must point to reload.html on public Firebase Hosting');
+
+  // 3. User clicks Back to Contacts button: returns refreshed homepage with the new contact
+  const backToContactsEvent = {
+    commonEventObject: {
+      hostApp: 'GMAIL',
+      userEmail: user,
+      invokedFunction: 'onHomepage'
+    }
+  };
+
+  const backRes = await fetch(`${baseUrl}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(backToContactsEvent)
+  });
+  assert.equal(backRes.status, 200);
+  const backData = await backRes.json();
+  const hpCard = backData.action.navigations[0].pushCard;
+  assert.equal(hpCard.header.title, 'Contacts Manager');
+  assert.ok(hpCard.header.subtitle.includes('1 Contact(s)'));
+  const foundWidget = hpCard.sections.flatMap(s => s.widgets || []).find(w =>
+    w.decoratedText?.text?.includes('margaret.hamilton@apollo.nasa.gov')
+  );
+  assert.ok(foundWidget, 'Homepage must contain the newly added contact');
+});
+
+
+
 
