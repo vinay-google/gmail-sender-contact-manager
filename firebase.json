@@ -1,6 +1,17 @@
 {
   "hosting": {
     "public": "public",
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors 'self' https://*.google.com https://*.googleusercontent.com;"
+          }
+        ]
+      }
+    ],
     "ignore": [
       "firebase.json",
       "**/.*",

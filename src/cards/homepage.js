@@ -72,9 +72,7 @@ async function getHomepageCard(event) {
           buttons: [
             createButton({
               text: 'Refresh Contacts',
-              openUrl: `${baseUrl}/reload-overlay`,
-              openAs: 'OVERLAY',
-              onClose: 'RELOAD',
+              actionMethod: 'onHomepage',
               isPrimary: true
             }),
             createButton({

@@ -75,9 +75,7 @@ function buildContactDetailsCardObject(contact, event) {
           buttons: [
             createButton({
               text: 'Back to Contacts',
-              openUrl: `${baseUrl}/reload-overlay`,
-              openAs: 'OVERLAY',
-              onClose: 'RELOAD',
+              actionMethod: 'onHomepage',
               isPrimary: true
             }),
             createButton({

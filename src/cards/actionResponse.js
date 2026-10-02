@@ -93,23 +93,36 @@ async function handleAddContactResponse(event) {
 
   // Trick 1: Generate updated contextual root card showing saved contact
   const rootMsgResponse = await getGmailMessageCard(event);
-  const updatedContextualRootCard = rootMsgResponse.action?.navigations?.[0]?.pushCard ||
+  const updatedContextualRootCard =
+    rootMsgResponse.action?.navigations?.[0]?.pushCard ||
     rootMsgResponse.card ||
     rootMsgResponse;
 
   // Build the Contact Details card
   const detailCard = buildContactDetailsCardObject(contact, event);
 
-  // Chain navigations: pop to root -> update root card -> push detail card
+  // Trick 1: Chain navigations: pop to root -> update contextual root card -> push detail card
+  // When user clicks ← from detailCard: pops to reveal updatedContextualRootCard (showing sender is in contacts)
   const navigations = [
     { popToRoot: true },
     { updateCard: updatedContextualRootCard },
     { pushCard: detailCard }
   ];
 
-  // Trick 3 & 4: Return SubmitFormResponse with stateChanged: true
+  // Trick 2: Self-closing overlay to reload both stacks simultaneously in Gmail
+  const reloadUrl = process.env.PUBLIC_RELOAD_URL || 'https://vinayvyas-chaddons-01.web.app/reload.html';
+
+  // Trick 1, 2, 3 & 4: Return SubmitFormResponse with:
+  // - navigations: [popToRoot, updateCard(updatedContextualRootCard), pushCard(detailCard)]
+  // - link: self-closing overlay with openAs: 'OVERLAY' and onClose: 'RELOAD'
+  // - stateChanged: true
   return createSubmitFormResponse({
     navigations,
+    link: {
+      url: reloadUrl,
+      openAs: 'OVERLAY',
+      onClose: 'RELOAD'
+    },
     notificationText: `✓ Added ${name} (${email}) to your contacts list!`,
     stateChanged: true
   });
@@ -137,9 +150,29 @@ async function handleClearContactsResponse(event) {
   });
 }
 
+/**
+ * Handles navigation back to homepage / contacts list (`onHomepage` or `handleBack`).
+ * Replaces the card with the latest homepage card and marks stateChanged: true.
+ * @param {Object} event - The Google Workspace event payload
+ * @returns {Object} SubmitFormResponse Payload
+ */
+async function handleBackResponse(event) {
+  const hpResponse = await getHomepageCard(event);
+  const homepageCard = hpResponse.action?.navigations?.[0]?.pushCard || hpResponse.card || hpResponse;
+
+  return createSubmitFormResponse({
+    navigations: [
+      { popToRoot: true },
+      { updateCard: homepageCard }
+    ],
+    stateChanged: true
+  });
+}
+
 module.exports = {
   handleConnectResponse,
   handleDisconnectResponse,
   handleAddContactResponse,
-  handleClearContactsResponse
+  handleClearContactsResponse,
+  handleBackResponse
 };

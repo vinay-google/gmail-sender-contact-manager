@@ -8,6 +8,7 @@ const {
   createResponsePayload
 } = require('../utils/cardBuilder');
 const { getConnectCard } = require('./connect');
+const { getHomepageCard } = require('./homepage');
 const { extractSenderInfo } = require('../utils/senderHelper');
 const store = require('../store');
 
@@ -109,9 +110,7 @@ async function getGmailMessageCard(event) {
             buttons: [
               createButton({
                 text: 'Back to Contacts',
-                openUrl: `${baseUrl}/reload-overlay`,
-                openAs: 'OVERLAY',
-                onClose: 'RELOAD',
+                actionMethod: 'onHomepage',
                 isPrimary: true
               }),
               createButton({
@@ -171,9 +170,7 @@ async function getGmailMessageCard(event) {
           }),
           createButton({
             text: 'Back to Contacts',
-            openUrl: `${baseUrl}/reload-overlay`,
-            openAs: 'OVERLAY',
-            onClose: 'RELOAD'
+            actionMethod: 'onHomepage'
           })
         ]
       }
